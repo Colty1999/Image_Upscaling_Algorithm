@@ -1,6 +1,5 @@
 import numpy as np
 import cv2
-from cv2 import dnn_superres
 
 # Read image
 # image = cv2.imread('./input/test1.jpg', cv2.IMREAD_UNCHANGED)
@@ -9,7 +8,7 @@ image = cv2.imread("./upscaled/upscaled.png", cv2.IMREAD_UNCHANGED)
 
 def upscale(image):
     # Create an SR object
-    sr = dnn_superres.DnnSuperResImpl_create()
+    sr = cv2.dnn_superres.DnnSuperResImpl_create()
     # Read the desired model
     path = "EDSR_x3.pb"
     sr.readModel(path)
@@ -26,14 +25,14 @@ def crop(image):
     return (image[crop_size: height - crop_size, crop_size: width - crop_size])
 
 
-def remove_background(image):
+def canny_edge_bg_removal(image):
     final_images = []
-    # kernel = np.array([[0, -1, 0],
-    #                    [-1, 5, -1],
-    #                    [0, -1, 0]])
-    # image = cv2.filter2D(src=image, ddepth=-1, kernel=kernel)
-    kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
-    image = cv2.filter2D(image, -1, kernel)
+    kernel = np.array([[0, -1, 0],
+                       [-1, 5, -1],
+                       [0, -1, 0]])
+    image = cv2.filter2D(src=image, ddepth=-1, kernel=kernel)
+    # kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
+    # image = cv2.filter2D(image, -1, kernel)
 
     v = np.median(image)
     sigma = 0.5
@@ -43,10 +42,10 @@ def remove_background(image):
 
     canny = cv2.Canny(image, lower, upper)
     canny = cv2.morphologyEx(canny, cv2.MORPH_CLOSE,
-                             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+                             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
 
     # Find contours; use proper return value with respect to OpenCV version
-    cnts = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    cnts = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     cnts = cnts[0] if len(cnts) == 2 else cnts[1]
 
     # Filter contours with sufficient areas; create binary mask from them
@@ -114,21 +113,31 @@ crop_image = False
 upscale_image = False
 denoise_image = False
 remove_background_from_image = True
+canny_edge = False
+treshold = True
 
 if crop_image:
     image = crop(image)
 if upscale_image:
     image = upscale(image)
-# if denoise_image:
-#     image = denoise(image)
+if denoise_image:
+    image = denoise(image)
 if remove_background_from_image:
-    final_images = remove_background(image)
 
-    for i in range(len(final_images)):
-        cv2.imwrite("./outcome/transparent_" +
-                    str(i) + ".png", final_images[i])
+    if canny_edge:
+        final_images = canny_edge_bg_removal(image)
+        for i in range(len(final_images)):
+            cv2.imwrite("./outcome/transparent_" +
+                        str(i) + ".png", final_images[i])
 
-    # image = treshold_bg_removal(image)
-    # cv2.imwrite("./outcome/transparent.png", image)
+    elif treshold:
+        final_image = treshold_bg_removal(image)
+        final_images = canny_edge_bg_removal(final_image)
+        for i in range(len(final_images)):
+            cv2.imwrite("./outcome/transparent_" +
+                        str(i) + ".png", final_images[i])
+        # cv2.imwrite("./outcome/transparent_full.png", final_image)
+
 else:
+    print("zapisuje")
     cv2.imwrite("./upscaled/upscaled.png", image)
